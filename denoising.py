@@ -2,7 +2,6 @@ import wfdb
 import matplotlib.pyplot as plt
 import warnings
 import numpy as np
-import pandas as pd
 from statsmodels.tsa.ar_model import AutoReg
 import pywt
 from sklearn.decomposition import FastICA
@@ -19,15 +18,12 @@ def AR(signal,p):
     results = model.fit()
     # Use the predict method to generate the denoised signal
     return results.predict(start=p, end=len(signal) - 1)
-def WVT(signal,wavelet,level,threshold):
+def WVT(signal,wavelet,level):
+    signal=signal
     coeffs = pywt.wavedec(signal, wavelet, level)
-
-    def soft_thresh(x, t):
-        return np.sign(x) * np.maximum(np.abs(x) - t, 0.)
-
-    threshold = threshold
-    coeffs[1:] = [soft_thresh(i, threshold) for i in coeffs[1:]]
-    return pywt.waverec(coeffs, wavelet)
+    coeffs[1:] = (pywt.threshold(i,value=100,mode='soft')for i in coeffs[1:])
+    denoised=pywt.waverec(coeffs, wavelet)
+    return denoised
 
 def ICA(signal,n):
     ica = FastICA(n_components=n)
@@ -38,15 +34,15 @@ def ICA(signal,n):
 def main():
     warnings.simplefilter("ignore")
 
-    record = wfdb.rdrecord('wrist-ppg-during-exercise-1.0.0/s1_walk',channels=[1],sampto=1000)
-    signal=record.p_signal
+    record = wfdb.rdrecord('wrist-ppg-during-exercise-1.0.0/s3_run',channels=[1],sampto=1000)
+    signal=record.p_signal.flatten()
     print(signal)
     fs = record.fs
     t=1/fs
     t=len(signal)*t
     t = np.arange(0, t, 1/fs)
 
-    signal = add_noise(signal)
+    #signal = add_noise(signal)
     signal=np.array(signal)
     # \signal = signal_n
     wfdb.plot_wfdb(record, title='PPG')
@@ -54,8 +50,8 @@ def main():
     p=5
 
     denoised_signal_AR = AR(signal,p)
-    denoised_signal_WVT = WVT(signal,'db1',5,100)
-    denoised_signal_ICA=ICA(signal,16)
+    denoised_signal_WVT = WVT(signal,'db4',4)
+    denoised_signal_ICA=ICA(signal,1)
 
     # Plot the original noisy signal and the denoised signal
     plt.figure()
@@ -80,12 +76,12 @@ def main():
     plt.plot(t, denoised_signal_ICA, label='Denoised signal_WVT')
     plt.xlabel('Time')
     plt.ylabel('Signal')
-    plt.title('Transformata Falkowa')
+    plt.title('ICA')
     plt.legend()
 
     plt.show()
     #wfdb.display(record.__dict__)
     print(record.__dict__)
-
+    print(pywt.wavelist(kind='discrete'))
 if __name__=="__main__":
     main()
