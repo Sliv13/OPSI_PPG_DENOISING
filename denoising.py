@@ -25,33 +25,37 @@ def WVT(signal,wavelet,level):
     denoised=pywt.waverec(coeffs, wavelet)
     return denoised
 
-def ICA(signal,n):
+def ICA(signals,n,threshold):
+    #ustawienie liczby komponentów ica
     ica = FastICA(n_components=n)
-    ica_sig = ica.fit_transform(signal.reshape(-1, 1))
+    #uzyskanie składowych niezależnych
+    ica_sig = ica.fit_transform(signals.reshape(-1,n))
+    #usunięcie szumu
+    ica_sig[np.abs(ica_sig) < threshold] = 0
+    #rekonstrukcja sygnału
     denoised=ica.inverse_transform(ica_sig)
     return denoised
 
 def main():
     warnings.simplefilter("ignore")
-
-    record = wfdb.rdrecord('wrist-ppg-during-exercise-1.0.0/s3_run',channels=[1],sampto=1000)
-    signal=record.p_signal.flatten()
-    print(signal)
+    record_for_AR_WVT=wfdb.rdrecord('/home/pawel/physionet.org/files/pulse-transit-time-ppg/1.1.0/s3_run',channels=[1],sampto=4000)
+    signal=record_for_AR_WVT.p_signal.flatten()
+    record = wfdb.rdrecord('/home/pawel/physionet.org/files/pulse-transit-time-ppg/1.1.0/s3_run',channels=[1,2,3,6],sampto=4000)
+    signals=record.p_signal
+    #signals=np.transpose(signals)
+    print(signals.shape)
     fs = record.fs
     t=1/fs
     t=len(signal)*t
     t = np.arange(0, t, 1/fs)
 
-    #signal = add_noise(signal)
-    signal=np.array(signal)
-    # \signal = signal_n
     wfdb.plot_wfdb(record, title='PPG')
     # Use the predict method to generate the denoised signal
-    p=5
+    p=30
 
     denoised_signal_AR = AR(signal,p)
     denoised_signal_WVT = WVT(signal,'db4',4)
-    denoised_signal_ICA=ICA(signal,1)
+    denoised_signal_ICA=ICA(signals,4,0.006)
 
     # Plot the original noisy signal and the denoised signal
     plt.figure()
@@ -72,16 +76,49 @@ def main():
     plt.legend()
 
     plt.subplot(3, 1, 3)
-    plt.plot(t, signal, label='Noisy signal')
-    plt.plot(t, denoised_signal_ICA, label='Denoised signal_WVT')
+    plt.plot(t, signals, label='Noisy signal')
+    plt.plot(t, denoised_signal_ICA[0:4000], label='Denoised signal_ICA')
     plt.xlabel('Time')
     plt.ylabel('Signal')
     plt.title('ICA')
     plt.legend()
 
     plt.show()
-    #wfdb.display(record.__dict__)
-    print(record.__dict__)
-    print(pywt.wavelist(kind='discrete'))
+    plt.figure()
+    plt.subplot(4, 1, 1)
+
+    plt.plot(t, signals[:,0], label='Noisy signal')
+    plt.plot(t, denoised_signal_ICA[:,0], label='Denoised signal_ICA')
+    plt.xlabel('Time')
+    plt.ylabel('Signal')
+    plt.title('ICA\nch1')
+    plt.legend()
+
+    plt.subplot(4, 1, 2)
+
+    plt.plot(t, signals[:,1], label='Noisy signal')
+    plt.plot(t, denoised_signal_ICA[:, 1], label='Denoised signal_ICA')
+    plt.xlabel('Time')
+    plt.ylabel('Signal')
+    plt.title('ch2')
+    plt.legend()
+
+    plt.subplot(4, 1, 3)
+    plt.plot(t, signals[:,2], label='Noisy signal')
+    plt.plot(t, denoised_signal_ICA[:, 2], label='Denoised signal_ICA')
+    plt.xlabel('Time')
+    plt.ylabel('Signal')
+    plt.title('ch3')
+    plt.legend()
+
+    plt.subplot(4, 1, 4)
+    plt.plot(t, signals[:,3], label='Noisy signal')
+    plt.plot(t, denoised_signal_ICA[:, 3], label='Denoised signal_ICA')
+    plt.xlabel('Time')
+    plt.ylabel('Signal')
+    plt.title('ch4')
+    plt.legend()
+    plt.show()
+
 if __name__=="__main__":
     main()
